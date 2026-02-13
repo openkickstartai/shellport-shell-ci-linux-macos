@@ -45,6 +45,16 @@ sed, grep, readlink, date, mktemp, stat, find, sort, tar, xargs, cp, ln, install
 
 ShellCheck focuses on shell **syntax** bugs. ShellPort focuses on **command-level cross-platform portability** — the flag compatibility gap between GNU, BSD, and busybox coreutils.
 
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0`  | No compatibility issues found |
+| `1`  | One or more portability issues detected |
+| `2`  | CLI usage error (bad arguments, missing path) |
+
+This makes ShellPort a natural CI gate: `shellport scan . || exit 1`
+
 ## Run Tests
 
 ```bash

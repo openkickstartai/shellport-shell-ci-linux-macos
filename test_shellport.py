@@ -109,3 +109,57 @@ def test_scan_multiple_issues_in_one_file():
         assert len(results) == 3
         cmds = {r["command"] for r in results}
         assert cmds == {"sed", "grep", "sort"}
+
+
+def test_scan_yaml_ci_file():
+    """YAML run: blocks should be scanned — this is a documented feature."""
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "ci.yml"
+        p.write_text(
+            "name: CI\n"
+            "on: push\n"
+            "jobs:\n"
+            "  build:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: |\n"
+            "          grep -P 'test' output.log\n"
+        )
+        results = scan(d, {"linux", "macos"})
+        assert len(results) == 1
+        assert results[0]["command"] == "grep"
+        assert results[0]["flag"] == "-P"
+
+
+def test_scan_empty_directory():
+    """Empty directory = zero findings, not a crash."""
+    with tempfile.TemporaryDirectory() as d:
+        results = scan(d, {"linux", "macos", "alpine"})
+        assert results == []
+
+
+def test_scan_portable_script_clean():
+    """Fully portable script should produce zero findings."""
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "safe.sh"
+        p.write_text("#!/bin/sh\ngrep -E 'foo' bar\necho done\n")
+        results = scan(d, {"linux", "macos", "alpine"})
+        assert results == []
+
+
+def test_extract_semicolon_chained():
+    """Semicolon-chained commands should all be parsed."""
+    result = extract_commands("mkdir -p /tmp/x; readlink -f /tmp/x")
+    assert ("readlink", ["-f"]) in result
+
+
+def test_extract_subshell_commands():
+    """Commands inside $() subshells should be extracted."""
+    result = extract_commands("echo $(date -d '1 day ago')")
+    assert ("date", ["-d"]) in result
+
+
+def test_compat_unknown_command_is_ignored():
+    """Commands not in compat_db should produce no findings."""
+    findings = check_compat("my_custom_tool", ["--foo"], {"linux", "macos"})
+    assert findings == []
